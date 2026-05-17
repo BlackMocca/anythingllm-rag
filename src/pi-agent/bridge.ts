@@ -22,6 +22,7 @@ import * as path from 'path';
 import { buildRAGConfig, setDebugLevel, logError, logRequest, logResponse } from '../config-loader';
 import { LOG_FILE } from '../file-logger';
 import { checkHealth } from '../rag';
+import * as os from 'os';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
 } from '../tools';
@@ -337,6 +338,10 @@ export default function myExtension(pi: any) {
           var cfg = ctx.ragConfig || buildRAGConfig();
           if (cfg.debugMode) setDebugLevel(cfg.debugLevel || 'full');
 
+          // Resolve config file paths that were actually read
+          var globalCfgPath  = path.join(os.homedir(), '.pi', 'agent', 'anythingllm_rag.json');
+          var projectCfgPath = path.join(process.cwd(), '.pi', 'agent', 'anythingllm_rag.json');
+
           var parts: string[] = [];
           parts.push('');
           parts.push('**ANYTHING-RAG DOCTOR**');
@@ -351,7 +356,7 @@ export default function myExtension(pi: any) {
           parts.push('  url              : ' + cfg.baseUrl);
           parts.push('  apiKey           : ' + mask(cfg.apiKey));
           parts.push('  timeout          : ' + cfg.timeout);
-          parts.push('  debug            : ' + cfg.debugMode);
+          parts.push('  debugMode        : ' + cfg.debugMode);
           parts.push('  debugLevel       : ' + (cfg.debugLevel || 'none'));
           parts.push('');
 
@@ -375,12 +380,16 @@ export default function myExtension(pi: any) {
 
           var output = parts.join('\n');
 
-          // Also push a compact toast via ctx2.ui.notify
+          // Compact notify: key config values + health summary
           if (ctx2 && ctx2.ui && ctx2.ui.notify) {
             ctx2.ui.notify(
               (connect && authentication ? '🟢' : '🔴') + ' OK: ' + (connect && authentication ? 'all passed' : 'issues found')
                 + '\nconnect=' + connect + '  auth=' + authentication
-                + '\nurl=' + cfg.baseUrl,
+                + '\nurl=' + cfg.baseUrl
+                + '\ndebugMode=' + cfg.debugMode + '  debugLevel=' + (cfg.debugLevel || 'none')
+                + '\nglobalCfg=' + globalCfgPath
+                + '\nprojectCfg=' + projectCfgPath
+                + '\nlogFile=' + _logFilePath(),
               'info'
             );
           }
