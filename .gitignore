@@ -1,0 +1,6 @@
+tmp/*
+dist/*
+.pi/*
+.claude/*
+coverage/*
+node_modules/*

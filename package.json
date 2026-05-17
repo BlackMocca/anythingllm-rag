@@ -1,0 +1,29 @@
+{
+  "name": "anythingllm-rag",
+  "version": "1.0.0",
+  "description": "PI Coding Agent knowledge_* tool extension layer",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node --watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "knowledge",
+    "rag",
+    "anythingllm"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.6"
+  }
+}

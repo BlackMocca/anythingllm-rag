@@ -1,0 +1,13 @@
+{
+  "rag": {
+    "url": "http://127.0.0.1:8081",
+    "apiKey": "your-api-key",
+    "timeout": 30000
+  },
+  "workspace": {
+    "limit": 10
+  },
+  "knowledge": {
+    "basePath": "./KNOWLEDGE.md"
+  }
+}
