@@ -20,6 +20,7 @@ import type { WorkspaceResolver } from '../resolver';
 import type { RAGConfig } from '../rag';
 import * as path from 'path';
 import { buildRAGConfig, logError, logRequest, logResponse } from '../config-loader';
+import { LOG_FILE } from '../file-logger';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
 } from '../tools';
@@ -203,7 +204,7 @@ export default function myExtension(pi: any) {
 
   // ── Log file path helper ──
   function _logFilePath(): string {
-    return path.join(process.cwd(), 'logs', 'anythingllm-rag-debug.log');
+    return LOG_FILE;
   }
 
   // ── Slash command handler ──

@@ -1,8 +1,7 @@
 /**
  * File-based Debug Logger
  *
- * Replaces console.log with file logging to:
- *   <project>/logs/anythingllm-rag-debug.log
+ * Writes to: ~/.pi/agent/extension/anythingllm-rag/logs/anythingllm-rag-debug.log
  */
 
 import * as fs from 'fs';
@@ -15,7 +14,7 @@ const HOME_DIR = os.homedir();
 
 // ประกอบร่าง Path ตามที่พี่ต้องการ
 const LOG_DIR  = path.join(HOME_DIR, '.pi', 'agent', 'extension', 'anythingllm-rag', 'logs');
-const LOG_FILE = path.join(LOG_DIR, 'anythingllm-rag-debug.log');
+export const LOG_FILE = path.join(LOG_DIR, 'anythingllm-rag-debug.log');
 
 // ── State ──
 
