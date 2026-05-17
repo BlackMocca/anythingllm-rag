@@ -21,6 +21,7 @@ import type { RAGConfig } from '../rag';
 import * as path from 'path';
 import { buildRAGConfig, setDebugLevel, logError, logRequest, logResponse } from '../config-loader';
 import { LOG_FILE } from '../file-logger';
+import { checkHealth } from '../rag';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
 } from '../tools';
@@ -321,6 +322,75 @@ export default function myExtension(pi: any) {
 
       handler: async function(rawArgs: string, ctx2: any) {
         return await _handleRagInit(rawArgs, ctx2);
+      },
+    });
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  Slash command: /anythingllm-rag-doctor                      ║
+    // ║  Shows current configuration and checks auth/API.        ║
+    // ╚═══════════════════════════════════════════════════════════╝
+    pi.registerCommand('anythingllm-rag-doctor', {
+      description: 'Show current RAG configuration and verify API authentication',
+
+      handler: async function(rawArgs: string, ctx2: any) {
+        try {
+          var cfg = ctx.ragConfig || buildRAGConfig();
+          if (cfg.debugMode) setDebugLevel(cfg.debugLevel || 'full');
+
+          var parts: string[] = [];
+          parts.push('');
+          parts.push('**ANYTHING-RAG DOCTOR**');
+          parts.push('');
+
+          // Key-value config
+          var mask = function(key: string | undefined) {
+            if (!key) return '(unset)';
+            return key.substring(0, 8) + '***';
+          };
+          parts.push('**Config:**');
+          parts.push('  url              : ' + cfg.baseUrl);
+          parts.push('  apiKey           : ' + mask(cfg.apiKey));
+          parts.push('  timeout          : ' + cfg.timeout);
+          parts.push('  debug            : ' + cfg.debugMode);
+          parts.push('  debugLevel       : ' + (cfg.debugLevel || 'none'));
+          parts.push('');
+
+          // Health check via checkHealth
+          parts.push('**Health Check:**');
+          var health = await checkHealth(cfg);
+          var connect = health.ok;
+          var authentication = health.ok && health.apiKeyConfigured;
+          if (health.status) {
+            parts.push('  status           : ' + health.status);
+          }
+          if (health.error) {
+            parts.push('  error            : ' + health.error);
+          }
+          parts.push('  connect          : ' + (connect ? '✅ yes' : '❌ no'));
+          parts.push('  authentication   : ' + (authentication ? '✅ ok' : (health.apiKeyConfigured ? '⚠ key set but auth failed' : '❌ key unset')));
+          parts.push('');
+          parts.push('  ✅ Overall: ' + (connect && authentication ? 'all checks passed' : 'issues found'));
+          parts.push('📄 Log: ' + _logFilePath());
+          parts.push('');
+
+          var output = parts.join('\n');
+
+          // Also push a compact toast via ctx2.ui.notify
+          if (ctx2 && ctx2.ui && ctx2.ui.notify) {
+            ctx2.ui.notify(
+              (connect && authentication ? '🟢' : '🔴') + ' OK: ' + (connect && authentication ? 'all passed' : 'issues found')
+                + '\nconnect=' + connect + '  auth=' + authentication
+                + '\nurl=' + cfg.baseUrl,
+              'info'
+            );
+          }
+
+          return output;
+        } catch (err: any) {
+          var msg = err && err.message ? err.message : String(err);
+          logError('CK-CMD', 'command error', { command: 'anythingllm-rag-doctor', error: msg });
+          return '❌ /anythingllm-rag-doctor failed: ' + msg;
+        }
       },
     });
   }
