@@ -19,7 +19,7 @@
 import type { WorkspaceResolver } from '../resolver';
 import type { RAGConfig } from '../rag';
 import * as path from 'path';
-import { buildRAGConfig, logError, logRequest, logResponse } from '../config-loader';
+import { buildRAGConfig, setDebugLevel, logError, logRequest, logResponse } from '../config-loader';
 import { LOG_FILE } from '../file-logger';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
@@ -211,6 +211,11 @@ export default function myExtension(pi: any) {
   async function _handleRagInit(rawArgs: string, ctx2: any): Promise<string> {
     try {
       var cfg = ctx.ragConfig || buildRAGConfig();
+
+      // — Ensure file logger is always synced (PI may pass ragConfig directly) —
+      if (cfg.debugMode) {
+        setDebugLevel(cfg.debugLevel || 'full');
+      }
       var doWrite = false;
       var apiLimit = 10;
       var args = (rawArgs || '').trim().split(/\s+/);
