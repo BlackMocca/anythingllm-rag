@@ -7,10 +7,14 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import os from 'os';
 
 // ── Constants ──
 
-const LOG_DIR  = path.join(process.cwd(), 'logs');
+const HOME_DIR = os.homedir();
+
+// ประกอบร่าง Path ตามที่พี่ต้องการ
+const LOG_DIR  = path.join(HOME_DIR, '.pi', 'agent', 'extension', 'anythingllm-rag', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'anythingllm-rag-debug.log');
 
 // ── State ──
