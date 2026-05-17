@@ -104,7 +104,7 @@ function apply(src?: Record<string, unknown>, target?: RAGConfig): void {
 
   if (typeof debugRaw === 'boolean') {
     target.debugMode = debugRaw;
-    target.debugLevel = debugRaw ? (target.debugLevel || 'full') : 'none';
+    target.debugLevel = debugRaw ? 'full' : 'none';
   } else if (typeof debugRaw === 'string') {
     const lvl = str(debugRaw);
     if (lvl) {
@@ -163,11 +163,11 @@ export function buildRAGConfig(): RAGConfig {
   // Hook into file logger if debug is active
   if (cfg.debugMode && cfg.debugLevel !== 'none') {
     cfg._fetchHooks = {
-      onRequest(method, url, body) {
+      onRequest(method: string, url: string, body?: any) {
         fl.debugWrite('DEBUG-REQ', method, url);
         fl.logRequest(method, url, body);
       },
-      onResponse(status, url, body) {
+      onResponse(status: number, url: string, body?: any) {
         fl.debugWrite('DEBUG-RES', status, url);
         fl.logResponse(status, body);
       },
