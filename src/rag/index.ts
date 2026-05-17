@@ -374,7 +374,138 @@ export async function listChats(config: RAGConfig, workspace: string): Promise<S
 }
 
 /**
- * Check if the RAG backend is healthy.
+ * List workspaces.
+ * GET /api/v1/workspaces
+ * Returns: [{ slug, description?, tags? }]
+ */
+export async function listWorkspaces(
+  config: RAGConfig,
+  limit?: number
+): Promise<SafeResult<{
+  slug: string;
+  description?: string;
+  tags?: string[];
+}[]>> {
+  try {
+    if (!config || !config.baseUrl) {
+      return { ok: false, error: 'RAGConfig missing baseUrl' };
+    }
+
+    var path = '/api/v1/workspaces';
+    var res = await fetchJson(config, path, 'GET');
+    if (!res.ok) return { ok: false, error: res.error };
+
+    var raw = res.data;
+    var items: { slug: string; description?: string; tags?: string[] }[] = [];
+
+    if (Array.isArray(raw)) {
+      // [ 'ws1', 'ws2', ... ]
+      for (var i = 0; i < raw.length && (!limit || i < limit); i++) {
+        var slug = typeof raw[i] === 'string' ? raw[i] : (raw[i] as { slug: string }).slug;
+        if (typeof slug === 'string') {
+          items.push({ slug: slug });
+        }
+      }
+    } else if (raw && typeof raw === 'object') {
+      // { slugs: [...], workspaces: { slug: { ... } } }
+      var keys: string[] = [];
+      if (Array.isArray((raw as any).slugs)) {
+        keys = (raw as any).slugs;
+      } else {
+        // enumerate known properties
+        var ws = (raw as any).workspaces;
+        if (ws && Array.isArray(ws)) {
+          // [ { slug, description?, tags? }, ... ]
+          for (var k = 0; k < ws.length && (!limit || k < limit); k++) {
+            var w0 = ws[k];
+            if (w0 && typeof w0 === 'object') {
+              var o0 = w0 as { [key: string]: unknown };
+              var s0 = (o0['slug'] && typeof o0['slug'] === 'string')
+                ? o0['slug']
+                : (o0['name'] && typeof o0['name'] === 'string' ? o0['name'] : undefined);
+              if (typeof s0 === 'string') {
+                var tags: string[] | undefined = undefined;
+                var t0 = o0['tags'];
+                if (typeof t0 === 'string') tags = t0.split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+                else if (Array.isArray(t0)) tags = t0 as string[];
+                items.push({
+                  slug: s0,
+                  description: (o0['description'] && typeof o0['description'] === 'string') ? o0['description'] : undefined,
+                  tags: tags,
+                });
+              }
+            }
+          }
+        } else if (ws && typeof ws === 'object' && !Array.isArray(ws)) {
+          var obj2 = ws as { [key: string]: { slug?: string; workspaceSlug?: string; description?: string; tags?: string | string[] } };
+          for (var key2 in obj2) {
+            var entry2 = obj2[key2];
+            if (!entry2) continue;
+            var s2 = entry2.slug || entry2.workspaceSlug || key2;
+            if (typeof s2 === 'string') {
+              var tags2: string[] | undefined = undefined;
+              var t2 = entry2.tags;
+              if (typeof t2 === 'string') tags2 = t2.split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+              else if (Array.isArray(t2)) tags2 = t2 as string[];
+              items.push({
+                slug: s2,
+                description: typeof entry2.description === 'string' ? entry2.description : undefined,
+                tags: tags2,
+              });
+            }
+          }
+        }
+      }
+      var slugs = Array.isArray(keys) ? keys : [];
+      for (var j = 0; j < slugs.length && (!limit || j < limit); j++) {
+        var wS0 = slugs[j];
+        if (typeof wS0 === 'string') items.push({ slug: wS0 });
+      }
+    }
+
+    return { ok: true, data: items };
+  } catch (err: unknown) {
+    var msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Get details for a single workspace.
+ * GET /api/v1/workspace/{slug}
+ */
+export async function getWorkspaceDetail(
+  config: RAGConfig,
+  slug: string
+): Promise<SafeResult<{ slug: string; description?: string; tags?: string[] }>> {
+  try {
+    if (!config || !config.baseUrl) {
+      return { ok: false, error: 'RAGConfig missing baseUrl' };
+    }
+
+    var path2 = '/api/v1/workspace/' + encodeURIComponent(slug);
+    var res = await fetchJson(config, path2, 'GET');
+    if (!res.ok) return { ok: false, error: res.error };
+
+    var d = res.data as { [key: string]: unknown } | undefined;
+    if (!d || typeof d !== 'object') return { ok: false, error: 'Unexpected response shape' };
+
+    var wsSlug = d['workspaceSlug'] ?? d['slug'];
+    var desc = typeof d['description'] === 'string' ? d['description'] : (typeof wsSlug === 'string' ? wsSlug : undefined);
+    var t = d['tags'];
+    var tags: string[] = [];
+    if (typeof t === 'string') tags = t.split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+    else if (Array.isArray(t)) tags = t as string[];
+
+    return { ok: true, data: { slug: slug, description: desc, tags: tags } };
+  } catch (err: unknown) {
+    var errmsg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: errmsg };
+  }
+}
+
+/**
+ * Health check — uses raw fetch so we can log response bodies.
  */
 export async function checkHealth(config: RAGConfig): Promise<{ ok: boolean; apiKeyConfigured: boolean; status?: number; error?: string }> {
   try {

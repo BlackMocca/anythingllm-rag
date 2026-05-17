@@ -21,7 +21,7 @@ import type { RAGConfig } from '../rag';
 import * as path from 'path';
 import { buildRAGConfig, setDebugLevel, logError, logRequest, logResponse } from '../config-loader';
 import { LOG_FILE } from '../file-logger';
-import { checkHealth } from '../rag';
+import { checkHealth, listWorkspaces, getWorkspaceDetail } from '../rag';
 import * as os from 'os';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
@@ -95,79 +95,7 @@ type WorkspaceEntry = {
   tags?: string[];
 };
 
-function cleanTags(tagsRaw: string): string[] {
-  return tagsRaw.split(',').map(function(t) { return t.trim(); }).filter(function(x) { return x ? true : false; });
-}
-
-async function _fetchRagWorkspaceList(cfg: RAGConfig, limit: number): Promise<{
-  workspaces: WorkspaceEntry[];
-  errors: string[];
-}> {
-  var workspaces: WorkspaceEntry[] = [];
-  var errors: string[] = [];
-
-  // Try API to get workspace names
-  var listRes = await _apiFetch(cfg, '/api/v1/workspaces', 'GET');
-  var slugs: string[] = [];
-
-  if (typeof listRes.data === 'string') {
-    // String response — parse JSON
-    try { slugs = JSON.parse(listRes.data) as string[]; } catch { slugs = []; }
-  } else if (Array.isArray((listRes as any).data)) {
-    // Array of strings
-    slugs = (listRes.data as string[]) || [];
-  } else if (listRes.data && typeof listRes.data === 'object') {
-    // Object mapping { slug: { info } }
-    var raw = listRes.data as Record<string, unknown>;
-    if ('slugs' in raw) {
-      slugs = (raw['slugs'] as string[]) || [];
-    } else if ('slugs' in raw) {
-      slugs = Object.keys(raw as Record<string, unknown>);
-    } else {
-      // Fallback: flatten nested objects
-      var _raw2 = raw as any;
-      for (var _k in _raw2) {
-        if (_raw2[_k] && typeof _raw2[_k] === 'object' && !Array.isArray(_raw2[_k])) {
-          var _sub = _raw2[_k] as Record<string, unknown>;
-          if ('slug' in _sub) {
-            slugs.push(_sub['slug'] as string);
-          } else if ('name' in _sub) {
-            slugs.push(_sub['name'] as string);
-          } else {
-            throw new Error('API returned unexpected shape: ' + JSON.stringify(_raw2));
-          }
-        }
-      }
-    }
-  }
-
-  if (slugs.length > 0) {
-    for (var i = 0; i < slugs.length && i < limit; i++) {
-      var slug = slugs[i];
-      var detailsRes = await _apiFetch(cfg, '/api/v1/workspaces/' + encodeURIComponent(slug), 'GET');
-      if (detailsRes.ok && detailsRes.data && typeof detailsRes.data === 'object') {
-        var d = detailsRes.data as Record<string, unknown>;
-        var desc: string | undefined;
-        var tags: string[] = [];
-        var wsSlug = d['workspaceSlug'];
-        desc = wsSlug && typeof wsSlug === 'string' ? wsSlug : (d['description'] && typeof d['description'] === 'string' ? d['description'] : undefined);
-        var t = d['tags'];
-        if (t && typeof t === 'string') tags = t.split(',').map(function(x) { return x.trim(); }).filter(Boolean);
-        else if (Array.isArray(t)) tags = t as string[];
-        workspaces.push({ slug: slug, description: desc, tags: tags });
-      } else {
-        errors.push('Failed to get details: ' + slug);
-      }
-    }
-  } else if (slugs.length === 0) {
-    // No API access — return empty
-    workspaces = [];
-  }
-
-  return { workspaces, errors };
-}
-
-// ── Main extension ──
+// — Main extension —
 
 var ctx: {
   workspaceResolver: WorkspaceResolver;
@@ -234,11 +162,24 @@ export default function myExtension(pi: any) {
       parts.push('');
 
       var entries: WorkspaceEntry[] = [];
-      var apiErrors: string[] = [];
       try {
-        var apiRes = await _fetchRagWorkspaceList(cfg, apiLimit);
-        entries = apiRes.workspaces;
-        apiErrors = apiRes.errors || [];
+        var listRes = await listWorkspaces(cfg, apiLimit);
+        if (!listRes.ok) {
+          var em2 = listRes.error;
+          logError('INIT-RAG', 'listWorkspaces failed', em2);
+          throw new Error(em2);
+        }
+        entries = listRes.data;
+        // Fetch details for each workspace that has no description/tags yet
+        for (var i = 0; i < entries.length; i++) {
+          if (!entries[i].description && !entries[i].tags) {
+            var detRes = await getWorkspaceDetail(cfg, entries[i].slug);
+            if (detRes.ok && detRes.data) {
+              entries[i].description = detRes.data.description;
+              entries[i].tags = detRes.data.tags;
+            }
+          }
+        }
       } catch (e: any) {
         var em = e && e.message ? e.message : String(e);
         logError('INIT-RAG', 'Fetch failed', em);
@@ -249,17 +190,9 @@ export default function myExtension(pi: any) {
         parts.push('⚠ No workspaces found from RAG API.');
       }
 
-      if (apiErrors.length > 0) {
-        parts.push('');
-        parts.push('⚠ Workspace fetch errors:');
-        for (var _j = 0; _j < apiErrors.length; _j++) {
-          parts.push('  - ' + apiErrors[_j]);
-        }
-      }
-
       // Always ensure log file exists
       var logPath = _logFilePath();
-      logError('INIT', 'check API settings', { entries: entries.length, errors: apiErrors, logFile: logPath });
+      logError('INIT', 'check API settings', { entries: entries.length, logFile: logPath });
       try { require('fs').writeFileSync(logPath, '', 'utf-8'); } catch {}
 
       parts.push('');
@@ -284,8 +217,7 @@ export default function myExtension(pi: any) {
         var lines = ['# Workspaces', ''];
         for (var _i2 = 0; _i2 < entries.length; _i2++) {
           var w2 = entries[_i2];
-          var tagStr = (w2.tags && w2.tags.length > 0) ? w2.tags.join(', ') : '';
-          lines.push('- ' + w2.slug + ' — ' + tagStr);
+          lines.push('- ' + w2.slug + ' — ' + 'Please add keyword or description of this workspace');
         }
         lines.push('');
         var md = lines.join('\n');
