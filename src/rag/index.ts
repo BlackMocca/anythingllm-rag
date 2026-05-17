@@ -22,6 +22,14 @@ export type RAGConfig = {
   /** Timeout in ms per request (default: 30000) */
   timeout?: number;
   logger?: Logger;
+  /** Debug mode flags */
+  debugMode?: boolean;
+  debugLevel?: 'none' | 'summary' | 'full';
+  /** Optional fetch hooks for logging, accepts body/response body */
+  _fetchHooks?: {
+    onRequest?: (method: string, url: string, body?: Record<string, unknown>) => void;
+    onResponse?: (status: number, url: string, body?: unknown) => void;
+  };
 };
 
 export type KnowledgeSearchResult = {
@@ -78,6 +86,14 @@ async function fetchJson(
     headers['Authorization'] = 'Bearer ' + config.apiKey;
   }
 
+  // Capture body for logging
+  var jsonBody = body !== undefined ? JSON.stringify(body, null, 2) : undefined;
+
+  // ── Log request when debug ──
+  if (config.debugLevel && config.debugLevel !== 'none' && config._fetchHooks?.onRequest) {
+    config._fetchHooks.onRequest(method, url, body);
+  }
+
   try {
     var _init: RequestInit = { method: method, headers: headers };
     if (body !== undefined) {
@@ -90,6 +106,16 @@ async function fetchJson(
       try { _response = await fetch(url, _init); } finally { clearTimeout(_t); }
     } else {
       _response = await fetch(url, _init);
+    }
+
+    // Capture response body before reading
+    var _resClone = _response.clone();
+    var _resBody: unknown;
+    try { _resBody = await _resClone.json(); } catch { _resBody = undefined; }
+
+    // ── Log response when debug ──
+    if (config.debugLevel && config.debugLevel !== 'none' && config._fetchHooks?.onResponse) {
+      config._fetchHooks.onResponse(_response.status, url, _resBody);
     }
 
     if (_response.ok === false || _response.status >= 400) {
@@ -363,15 +389,25 @@ export async function checkHealth(config: RAGConfig): Promise<{ ok: boolean; api
 
     var _response: Response;
     try {
-      _response = await fetch(baseUrl + '/api/v1/auth', {
-        method: 'GET',
-        headers: config.apiKey ? { 'Authorization': 'Bearer ' + config.apiKey } : {},
-      });
+        var url = baseUrl + '/api/v1/auth';
+        
+        // ── Log request when debug ──
+        if (config.debugLevel && config.debugLevel !== 'none' && config._fetchHooks?.onRequest) {
+          config._fetchHooks.onRequest('GET', url, undefined);
+        }
+        
+        _response = await fetch(url, {
+          method: 'GET',
+          headers: config.apiKey ? { 'Authorization': 'Bearer ' + config.apiKey } : {},
+        });
     } catch (err) {
       return { ok: false, apiKeyConfigured: !!config.apiKey, status: 0, error: err instanceof Error ? err.message : String(err) };
     }
 
-    var status2 = _response.status;
+    // ── Log response when debug ──
+    if (config.debugLevel && config.debugLevel !== 'none' && config._fetchHooks?.onResponse) {
+      config._fetchHooks.onResponse(_response.status, baseUrl + '/api/v1/auth', undefined);
+    }    var status2 = _response.status;
     return {
       ok: status2 >= 200 && status2 < 400,
       apiKeyConfigured: !!config.apiKey,

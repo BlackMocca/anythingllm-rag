@@ -30,6 +30,11 @@ export type RAGConfig = {
   debugLevel: 'none' | 'summary' | 'full';
   knowledgeBasePath?: string;
   workspaceBasePath?: string;
+  _fetchHooks?: {
+    onRequest?: (method: string, url: string, body?: Record<string, unknown>) => void;
+    onResponse?: (status: number, url: string, body?: unknown) => void;
+    onFetch?: (method: string, url: string) => void;
+  };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -150,16 +155,40 @@ export function buildRAGConfig(): RAGConfig {
     cfg.debugLevel = level(process.env.RAG_DEBUG_LEVEL);
   }
 
+  // Sync file logger's internal state with config
+  if (cfg.debugMode) {
+    fl.setDebugLevel(cfg.debugLevel || 'full');
+  }
+
+  // Hook into file logger if debug is active
+  if (cfg.debugMode && cfg.debugLevel !== 'none') {
+    cfg._fetchHooks = {
+      onRequest(method, url, body) {
+        fl.debugWrite('DEBUG-REQ', method, url);
+        fl.logRequest(method, url, body);
+      },
+      onResponse(status, url, body) {
+        fl.debugWrite('DEBUG-RES', status, url);
+        fl.logResponse(status, body);
+      },
+    };
+  }
+
   return cfg;
 }
 
-// ── Re-export file logger (file-based, not console) ───────────────
+// ── Re-export file logger (file-based, not console) ───────────
+
+import * as fl from './file-logger';
 
 export {
   setDebugLevel,
+  logError,
+  logInfo,
+} from './file-logger';
+
+export {
   debugWrite,
   logRequest,
   logResponse,
-  logError,
-  logInfo,
 } from './file-logger';

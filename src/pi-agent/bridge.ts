@@ -19,7 +19,7 @@
 import type { WorkspaceResolver } from '../resolver';
 import type { RAGConfig } from '../rag';
 import * as path from 'path';
-import { buildRAGConfig, logError } from '../config-loader';
+import { buildRAGConfig, logError, logRequest, logResponse } from '../config-loader';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
 } from '../tools';
@@ -60,10 +60,23 @@ async function _apiFetch(cfg: RAGConfig, path: string, method: string, body?: an
   var headers: any = { 'Content-Type': 'application/json' };
   if (cfg.apiKey) headers['Authorization'] = 'Bearer ' + cfg.apiKey;
   var opts: RequestInit = { method, headers };
-  if (body !== undefined) opts.body = JSON.stringify(body);
+  var rawBody = body !== undefined ? JSON.stringify(body) : undefined;
+
+  // ── Log request when debug (check both debugMode and debugLevel) ──
+  if (cfg.debugMode && cfg.debugLevel !== 'none') {
+    try { logRequest(method, base + path, body); } catch {}
+  }
+
+  var url = base + path;
   try {
-    var res = await fetch(base + path, opts);
+    var res = await fetch(url, opts);
     var raw = await res.json();
+
+    // ── Log response when debug ──
+    if (cfg.debugMode && cfg.debugLevel !== 'none') {
+      logResponse(res.status, raw);
+    }
+
     return { ok: res.ok, status: res.status, data: raw };
   } catch (e: any) {
     var msg = e && e.message ? e.message : String(e);
@@ -94,12 +107,35 @@ async function _fetchRagWorkspaceList(cfg: RAGConfig, limit: number): Promise<{
   var listRes = await _apiFetch(cfg, '/api/v1/workspaces', 'GET');
   var slugs: string[] = [];
 
-  if (listRes.ok && Array.isArray(listRes.data)) {
-    slugs = listRes.data as string[];
-  } else if (listRes.ok && listRes.data && typeof listRes.data === 'object') {
+  if (typeof listRes.data === 'string') {
+    // String response — parse JSON
+    try { slugs = JSON.parse(listRes.data) as string[]; } catch { slugs = []; }
+  } else if (Array.isArray((listRes as any).data)) {
+    // Array of strings
+    slugs = (listRes.data as string[]) || [];
+  } else if (listRes.data && typeof listRes.data === 'object') {
+    // Object mapping { slug: { info } }
     var raw = listRes.data as Record<string, unknown>;
-    if ('workspaceSlugs' in raw) slugs = raw['workspaceSlugs'] as string[] || [];
-    else if ('workspaces' in raw) slugs = raw['workspaces'] as string[] || [];
+    if ('slugs' in raw) {
+      slugs = (raw['slugs'] as string[]) || [];
+    } else if ('slugs' in raw) {
+      slugs = Object.keys(raw as Record<string, unknown>);
+    } else {
+      // Fallback: flatten nested objects
+      var _raw2 = raw as any;
+      for (var _k in _raw2) {
+        if (_raw2[_k] && typeof _raw2[_k] === 'object' && !Array.isArray(_raw2[_k])) {
+          var _sub = _raw2[_k] as Record<string, unknown>;
+          if ('slug' in _sub) {
+            slugs.push(_sub['slug'] as string);
+          } else if ('name' in _sub) {
+            slugs.push(_sub['name'] as string);
+          } else {
+            throw new Error('API returned unexpected shape: ' + JSON.stringify(_raw2));
+          }
+        }
+      }
+    }
   }
 
   if (slugs.length > 0) {

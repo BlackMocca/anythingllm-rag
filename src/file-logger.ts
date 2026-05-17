@@ -49,10 +49,11 @@ function writeLine(tag: string, message: string): void {
 }
 
 /**
- * Write multi-line content only in 'full' mode.
+ * Write multi-line content when debug is any non-'none' level.
+ * Writes body and status for HTTP logging.
  */
 function writeFull(tag: string, message: string, detail?: string): void {
-  if (_debugLevel !== 'full') return;
+  if (_debugLevel === 'none') return;
   if (!detail) return;
 
   ensureLogDir();
@@ -123,62 +124,29 @@ export function debugWrite(tag: string, ...args: any[]): void {
   if (Math.random() < 0.01) trimLog();
 }
 
-/**
- * Log an HTTP request (before sending).
- */
-export function logRequest(method: string, url: string, options?: {
-  headers?: Record<string, string>;
-  body?: any;
-  level?: 'summary' | 'full';
-}): void {
-  const lvl = options?.level || _debugLevel;
-  const msg = `${method} ${url}`;
+export function logRequest(method: string, url: string, body?: any): void {
+  const parts: string[] = [method + ' ' + url];
 
-  if (lvl === 'full') {
-    const parts: string[] = [];
-    if (options?.headers) {
-      const copy = { ...options.headers };
-      if (copy['Authorization']) copy['Authorization'] = '***';
-      parts.push(`headers: ${JSON.stringify(copy)}`);
-    }
-    if (options?.body) {
-      parts.push(`body: ${JSON.stringify(options.body, null, 2)}`);
-    }
-    if (parts.length > 0) {
-      writeFull('REQ', msg, parts.join('\n'));
-    } else {
-      writeLine('REQ', msg);
-    }
-  } else {
-    writeLine('REQ', msg);
+  if (body !== undefined) {
+    parts.push('  body: ' + safeDump(body));
   }
+
+  writeFull('REQ', method + ' ' + url, parts.join('\n'));
 }
 
 /**
  * Log an HTTP response (after receiving).
  */
-export function logResponse(status: number, headers?: Record<string, string>, body?: any, level?: 'summary' | 'full'): void {
-  const lvl = level || _debugLevel;
+export function logResponse(status: number, body?: any): void {
   const ok = status >= 200 && status < 300;
-  const msg = ok ? `[${status} OK]` : `[${status} FAIL]`;
+  const statusTag = ok ? 'OK' : 'FAIL ' + status;
+  const parts: string[] = [statusTag];
 
-  if (lvl === 'full') {
-    const parts: string[] = [];
-    if (headers && Object.keys(headers).length > 0) {
-      parts.push(`headers: ${JSON.stringify(headers, null, 2)}`);
-    }
-    if (body !== undefined) {
-      const dump = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
-      parts.push(`body: ${dump.substring(0, 4096)}`);
-    }
-    if (parts.length > 0) {
-      writeFull('RES', msg, parts.join('\n'));
-    } else {
-      writeLine('RES', msg);
-    }
-  } else {
-    writeLine('RES', msg);
+  if (body !== undefined) {
+    parts.push('  body: ' + (typeof body === 'string' ? body : safeDump(body)));
   }
+
+  writeFull('RES', statusTag, parts.join('\n'));
 }
 
 /**

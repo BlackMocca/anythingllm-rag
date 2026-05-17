@@ -125,6 +125,23 @@ Debug output:
 - **`summary`**: Method + URL + HTTP status → written to file
 - **`full`**: Full request headers, body, response headers, response body → written to file
 
+**Logged endpoints (all API calls):**
+- `GET /api/v1/workspaces` — List workspace slugs
+- `GET /api/v1/workspaces/{slug}` — Workspace details
+- `POST /api/v1/workspace/{slug}/vector-search` — Knowledge search
+- `POST /api/v1/workspace/{slug}/chat` — Chat query
+- `GET /api/v1/documents` — Document list
+- `GET /api/v1/workspace/{slug}/chats` — Chat history
+- `GET /api/v1/auth` — Health check
+
+**Example log output:**
+```log
+[2026-05-17T10:27:54Z] [RAG:DEBUG-REQ] GET http://localhost:8081/api/v1/workspaces
+[2026-05-17T10:27:54Z] [RAG:REQ] GET http://localhost:8081/api/v1/workspaces
+[2026-05-17T10:27:54Z] [RAG:DEBUG-RES] 401 http://localhost:8081/api/v1/workspaces
+[2026-05-17T10:27:54Z] [RAG:RES] [401 FAIL]
+```
+
 **Log file location:**
 ```
 <project>/logs/anythingllm-rag-debug.log
