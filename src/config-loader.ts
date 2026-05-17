@@ -99,7 +99,7 @@ function apply(src?: Record<string, unknown>, target?: RAGConfig): void {
 
   if (typeof debugRaw === 'boolean') {
     target.debugMode = debugRaw;
-    target.debugLevel = debugRaw ? (target.debugLevel || 'summary') : 'none';
+    target.debugLevel = debugRaw ? (target.debugLevel || 'full') : 'none';
   } else if (typeof debugRaw === 'string') {
     const lvl = str(debugRaw);
     if (lvl) {

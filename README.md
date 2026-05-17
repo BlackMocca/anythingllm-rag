@@ -110,7 +110,9 @@ Enable debug logging to see request/response details:
 
 **Set in config file:**
 ```json
-  "debug": "summary"   // or "full" or "verbose" or true
+  "debug": "full"      // or "summary" or "none"
+  // "debug": true  → resolves to "full"
+  // "debug": false → debugLevel = "none"
 ```
 
 **Or use environment variables:**
