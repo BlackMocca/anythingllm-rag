@@ -111,13 +111,7 @@ function apply(src?: Record<string, unknown>, target?: RAGConfig): void {
 
 // ── Main ─────────────────────────────────────────────────────────
 
-/**
- * Build the merged RAG configuration.
- *
- * @returns resolved config with source metadata
- */
 export function buildRAGConfig(): RAGConfig {
-  // Start with sensible defaults
   const cfg: RAGConfig = {
     baseUrl:    'http://localhost:3011',
     apiKey:     undefined,
@@ -127,15 +121,12 @@ export function buildRAGConfig(): RAGConfig {
     workspaceBasePath: process.cwd(),
   };
 
-  // Global config
   const globalRaw = readIfExists(GLOBAL_PATH);
   if (globalRaw) apply(globalRaw, cfg);
 
-  // Project config
   const projectRaw = readIfExists(PROJECT_PATH);
   if (projectRaw) apply(projectRaw, cfg);
 
-  // Environment variables (highest priority)
   if (process.env.RAG_URL)            cfg.baseUrl    = process.env.RAG_URL;
   if (process.env.RAG_API_KEY)        cfg.apiKey     = process.env.RAG_API_KEY;
   const t = num(process.env.RAG_TIMEOUT);
@@ -145,12 +136,10 @@ export function buildRAGConfig(): RAGConfig {
   if (process.env.WORKSPACE_BASE_PATH)
     cfg.workspaceBasePath = process.env.WORKSPACE_BASE_PATH;
 
-  // Debug overrides
-  if (process.env.RAG_DEBUG === 'true' || process.env.RAG_DEBUG === '1')
-    {
-      cfg.debugMode = true;
-      cfg.debugLevel = process.env.RAG_DEBUG_LEVEL ? level(process.env.RAG_DEBUG_LEVEL) : 'summary';
-    }
+  if (process.env.RAG_DEBUG === 'true' || process.env.RAG_DEBUG === '1') {
+    cfg.debugMode = true;
+    cfg.debugLevel = process.env.RAG_DEBUG_LEVEL ? level(process.env.RAG_DEBUG_LEVEL) : 'summary';
+  }
   if (process.env.RAG_DEBUG) {
     cfg.debugMode = true;
     cfg.debugLevel = process.env.RAG_DEBUG === 'full' || process.env.RAG_DEBUG === 'verbose'
@@ -163,3 +152,14 @@ export function buildRAGConfig(): RAGConfig {
 
   return cfg;
 }
+
+// ── Re-export file logger (file-based, not console) ───────────────
+
+export {
+  setDebugLevel,
+  debugWrite,
+  logRequest,
+  logResponse,
+  logError,
+  logInfo,
+} from './file-logger';

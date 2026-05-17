@@ -2,5 +2,6 @@ tmp/*
 dist/*
 .pi/*
 .claude/*
+logs/*
 coverage/*
 node_modules/*

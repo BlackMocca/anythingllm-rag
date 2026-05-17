@@ -9,5 +9,6 @@
   },
   "knowledge": {
     "basePath": "./KNOWLEDGE.md"
-  }
+  },
+  "debug": true
 }

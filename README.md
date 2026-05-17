@@ -35,6 +35,107 @@ anythingllm-rag/
 
 ---
 
+## Slash Command: `/anythingllm-rag-init`
+
+Discover workspaces from the RAG backend and optionally generate `KNOWLEDGE.md`.
+
+```sh
+/anythingllm-rag-init           # Discover and display workspaces
+/anythingllm-rag-init --write   # Discover + generate KNOWLEDGE.md
+/anythingllm-rag-init 5         # Limit to 5 workspaces
+```
+
+### Output
+
+The command returns structured output including:
+- RAG backend URL and API key status
+- Discovered workspaces with descriptions and tags
+- **Log file location**: `📄 <project>/logs/anythingllm-rag-debug.log`
+
+Example error notification:
+```
+⚠ If there are errors, please see the log file:
+📄 /path/to/project/logs/anythingllm-rag-debug.log
+```
+
+---
+
+## Configuration
+
+The system reads configuration from two files with hierarchical precedence:
+
+1. **Global config** → `~/.pi/agent/anythingllm_rag.json`
+2. **Project config** → `<PROJECT_DIR>/.pi/agent/anythingllm_rag.json`
+
+Environment variables (`RAG_URL`, `RAG_API_KEY`, etc.) always take the highest priority.
+
+### Global Config (`~/.pi/agent/anythingllm_rag.json`)
+
+Set defaults across all projects:
+
+```json
+{
+  "rag": {
+    "url": "http://127.0.0.1:8081",
+    "apiKey": "your-global-api-key",
+    "timeout": 30000
+  },
+  "workspace": {
+    "limit": 10
+  },
+  "knowledge": {
+    "basePath": "./KNOWLEDGE.md"
+  },
+  "debug": "summary"
+}
+```
+
+### Project Config (`<PROJECT_DIR>/.pi/agent/anythingllm_rag.json`)
+
+Override only what you need for the current project:
+
+```json
+{
+  "rag": {
+    "apiKey": "project-specific-key",
+    "timeout": 60000
+  },
+  "debug": "full"
+}
+```
+
+### Debug Mode
+
+Enable debug logging to see request/response details:
+
+**Set in config file:**
+```json
+  "debug": "summary"   // or "full" or "verbose" or true
+```
+
+**Or use environment variables:**
+```bash
+export RAG_DEBUG=true
+export RAG_DEBUG_LEVEL=full    # 'full', 'summary', or 'none'
+```
+
+Debug output:
+- **`summary`**: Method + URL + HTTP status → written to file
+- **`full`**: Full request headers, body, response headers, response body → written to file
+
+**Log file location:**
+```
+<project>/logs/anythingllm-rag-debug.log
+```
+
+Log file is auto-created, auto-cleaned (keeps last 5000 lines), and can be viewed at any time:
+```bash
+# View last 100 lines
+tail -n 100 logs/anythingllm-rag-debug.log
+```
+
+---
+
 ## Quick Start
 
 ### Build
@@ -143,6 +244,10 @@ The security module enforces:
 The RAG adapter (`src/rag/index.ts`) connects to:
 - **AnythingLLM** at `http://<host>:3011` (default port)
 
+API endpoints:
+- `GET /api/v1/workspaces` → List workspace slugs
+- `GET /api/v1/workspaces/{slug}` → Get workspace details
+
 Configure with:
 
 ```ts
@@ -181,6 +286,14 @@ pi -e ./src/pi-agent/bridge.ts
 | `knowledge_write` | Safe file write with atomic rename |
 | `knowledge_list` | List workspace directory entries |
 | `knowledge_list_workspaces` | Discover available workspaces with descriptions & tags |
+
+
+### Slash Command
+
+| Command | Description |
+|---|---|
+| `/anythingllm-rag-init` | Discover workspaces from RAG backend, displays descriptions & tags |
+| `/anythingllm-rag-init --write` | Discover + generate `KNOWLEDGE.md` file |
 
 ### Environment Variables
 

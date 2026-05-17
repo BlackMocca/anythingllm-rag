@@ -2,7 +2,7 @@
  * PI Agent Extension Bridge
  *
  * Provides five `knowledge_*` tools + one slash command:
- *   /anything-rag-init    Discover workspaces from RAG backend, generate KNOWLEDGE.md
+ *   /anythingllm-rag-init    Discover workspaces from RAG backend, generate KNOWLEDGE.md
  *   knowledge_search      RAG query against AnythingLLM
  *   knowledge_read        Safe read from workspace dir
  *   knowledge_write       Safe write to workspace dir
@@ -19,7 +19,7 @@
 import type { WorkspaceResolver } from '../resolver';
 import type { RAGConfig } from '../rag';
 import * as path from 'path';
-import { buildRAGConfig } from '../config-loader';
+import { buildRAGConfig, logError } from '../config-loader';
 import {
   knowledgeSearch, knowledgeRead, knowledgeWrite, knowledgeList,
 } from '../tools';
@@ -91,7 +91,7 @@ async function _fetchRagWorkspaceList(cfg: RAGConfig, limit: number): Promise<{
   var errors: string[] = [];
 
   // Try API to get workspace names
-  var listRes = await _apiFetch(cfg, '/api/v1/workspace', 'GET');
+  var listRes = await _apiFetch(cfg, '/api/v1/workspaces', 'GET');
   var slugs: string[] = [];
 
   if (listRes.ok && Array.isArray(listRes.data)) {
@@ -105,7 +105,7 @@ async function _fetchRagWorkspaceList(cfg: RAGConfig, limit: number): Promise<{
   if (slugs.length > 0) {
     for (var i = 0; i < slugs.length && i < limit; i++) {
       var slug = slugs[i];
-      var detailsRes = await _apiFetch(cfg, '/api/v1/workspace/' + encodeURIComponent(slug), 'GET');
+      var detailsRes = await _apiFetch(cfg, '/api/v1/workspaces/' + encodeURIComponent(slug), 'GET');
       if (detailsRes.ok && detailsRes.data && typeof detailsRes.data === 'object') {
         var d = detailsRes.data as Record<string, unknown>;
         var desc: string | undefined;
@@ -159,99 +159,126 @@ export default function myExtension(pi: any) {
   }
 
   // ╔══════════════════════════════════════════════════════════╗
-  // ║  Slash command: /anything-rag-init                    ║
+  // ║  Slash command: /anythingllm-rag-init                    ║
   // ║  Discovers workspaces from RAG backend and shows      ║
   // ║  their descriptions + tags.  Use `--write` to         ║
   // ║  generate KNOWLEDGE.md (./KNOWLEDGE.md).              ║
   // ╚══════════════════════════════════════════════════════════╝
+
+  // ── Log file path helper ──
+  function _logFilePath(): string {
+    return path.join(process.cwd(), 'logs', 'anythingllm-rag-debug.log');
+  }
+
+  // ── Slash command handler ──
+  async function _handleRagInit(rawArgs: string, ctx2: any): Promise<string> {
+    try {
+      var cfg = ctx.ragConfig || buildRAGConfig();
+      var doWrite = false;
+      var apiLimit = 10;
+      var args = (rawArgs || '').trim().split(/\s+/);
+      doWrite = args.indexOf('--write') >= 0;
+      
+      var parts: string[] = [];
+      parts.push('');
+      parts.push('**ANYTHING-RAG INIT**');
+      parts.push('');
+
+      var url = cfg.baseUrl;
+      var hasApiKey = !!cfg.apiKey;
+      parts.push('RAG backend: ' + url + (hasApiKey ? ' (api key set)' : ' (no api key)'));
+      parts.push('');
+
+      var entries: WorkspaceEntry[] = [];
+      var apiErrors: string[] = [];
+      try {
+        var apiRes = await _fetchRagWorkspaceList(cfg, apiLimit);
+        entries = apiRes.workspaces;
+        apiErrors = apiRes.errors || [];
+      } catch (e: any) {
+        var em = e && e.message ? e.message : String(e);
+        logError('INIT-RAG', 'Fetch failed', em);
+        parts.push('⚠ Could not reach RAG (' + url + '): ' + em);
+        entries = [];
+      }
+      if (entries.length === 0) {
+        parts.push('⚠ No workspaces found from RAG API.');
+      }
+
+      if (apiErrors.length > 0) {
+        parts.push('');
+        parts.push('⚠ Workspace fetch errors:');
+        for (var _j = 0; _j < apiErrors.length; _j++) {
+          parts.push('  - ' + apiErrors[_j]);
+        }
+      }
+
+      // Always ensure log file exists
+      var logPath = _logFilePath();
+      logError('INIT', 'check API settings', { entries: entries.length, errors: apiErrors, logFile: logPath });
+      try { require('fs').writeFileSync(logPath, '', 'utf-8'); } catch {}
+
+      parts.push('');
+      parts.push('⚠ If there are errors, please see the log file:');
+      parts.push('📄 ' + logPath);
+      parts.push('');
+
+      parts.push('');
+      parts.push('Discovered workspaces (' + entries.length + '):');
+      for (var _n = 0; _n < entries.length; _n++) {
+        var e = entries[_n];
+        parts.push('  * `' + e.slug + '`');
+        if (e.description) parts.push('    desc: ' + e.description);
+        if (e.tags && e.tags.length > 0) parts.push('    tags: ' + e.tags.join(', '));
+      }
+      parts.push('');
+
+      if (!doWrite) {
+        parts.push('To generate KNOWLEDGE.md, run /anythingllm-rag-init --write');
+        parts.push('');
+      } else {
+        var lines = ['# Workspaces', ''];
+        for (var _i2 = 0; _i2 < entries.length; _i2++) {
+          var w2 = entries[_i2];
+          var tagStr = (w2.tags && w2.tags.length > 0) ? w2.tags.join(', ') : '';
+          lines.push('- ' + w2.slug + ' — ' + tagStr);
+        }
+        lines.push('');
+        var md = lines.join('\n');
+
+        var outputPath = './KNOWLEDGE.md';
+        try {
+          require('fs').writeFileSync(outputPath, md, 'utf-8');
+          parts.push('✅ KNOWLEDGE.md written to: ' + outputPath);
+          parts.push('');
+          parts.push('Preview:');
+          parts.push('```');
+          parts.push(md.split('\n').slice(0, 15).join('\n'));
+          parts.push('```');
+        } catch (ew: any) {
+          var ewm = ew && ew.message ? ew.message : String(ew);
+          parts.push('❌ Failed to write KNOWLEDGE.md: ' + ewm);
+          parts.push('📄 Log file: ' + _logFilePath());
+        }
+      }
+
+      var output = parts.join('\n');
+      if (ctx2 && ctx2.ui) ctx2.ui.notify(output, 'info');
+      return output;
+    } catch (err: any) {
+      var msg = err && err.message ? err.message : String(err);
+      var logPath = _logFilePath();
+      logError('INIT-CMD', 'command error', { command: 'anythingllm-rag-init', error: msg, logFile: logPath });
+      return '❌ /anythingllm-rag-init failed: ' + msg;
+    }
+  }
+
   if (pi && typeof pi.registerCommand === 'function') {
-    pi.registerCommand('anything-rag-init', {
+    pi.registerCommand('anythingllm-rag-init', {
       description: 'Discover workspaces from RAG backend and generate KNOWLEDGE.md',
 
       handler: async function(rawArgs: string, ctx2: any) {
-        try {
-          var cfg = ctx.ragConfig || buildRAGConfig();
-          var doWrite = false;
-          var apiLimit = 10;
-          var args = (rawArgs || '').trim().split(/\s+/);
-          doWrite = args.indexOf('--write') >= 0;
-          for (var _i = 0; _i < args.length; _i++) {
-            if (/^\d+$/.test(args[_i])) apiLimit = parseInt(args[_i], 10);
-          }
-
-          var parts: string[] = [];
-          parts.push('');
-          parts.push('**ANYTHING-RAG INIT**');
-          parts.push('');
-
-          // ─ Step 1: Discover from RAG API ─
-          var url = cfg.baseUrl;
-          var hasApiKey = !!cfg.apiKey;
-          parts.push('RAG backend: ' + url + (hasApiKey ? ' (api key set)' : ' (no api key)'));
-          parts.push('');
-
-          // Fetch from RAG API only
-          var entries: WorkspaceEntry[] = [];
-          try {
-            var apiRes = await _fetchRagWorkspaceList(cfg, apiLimit);
-            entries = apiRes.workspaces;
-          } catch (e: any) {
-            var em = e && e.message ? e.message : String(e);
-            parts.push('⚠ Could not reach RAG (' + url + '): ' + em);
-            entries = [];
-          }
-          if (entries.length === 0) {
-            parts.push('⚠ No workspaces found from RAG API.');
-          }
-
-          // ─ Step 2: Show discovered list ─
-          parts.push('');
-          parts.push('Discovered workspaces (' + entries.length + '):');
-          for (var _n = 0; _n < entries.length; _n++) {
-            var e = entries[_n];
-            parts.push('  * `' + e.slug + '`');
-            if (e.description) parts.push('    desc: ' + e.description);
-            if (e.tags && e.tags.length > 0) parts.push('    tags: ' + e.tags.join(', '));
-          }
-          parts.push('');
-
-          if (!doWrite) {
-            parts.push('To generate KNOWLEDGE.md, run /anything-rag-init --write');
-            parts.push('');
-          } else {
-            // ─ Step 3: Write KNOWLEDGE.md to current directory ─
-            var lines = ['# Workspaces', ''];
-            for (var _i2 = 0; _i2 < entries.length; _i2++) {
-              var w2 = entries[_i2];
-              var tagStr = (w2.tags && w2.tags.length > 0) ? w2.tags.join(', ') : '';
-              lines.push('- ' + w2.slug + ' — ' + tagStr);
-            }
-            lines.push('');
-            var md = lines.join('\n');
-
-            var outputPath = './KNOWLEDGE.md';
-            try {
-              require('fs').writeFileSync(outputPath, md, 'utf-8');
-              parts.push('✅ KNOWLEDGE.md written to: ' + outputPath);
-              parts.push('');
-              parts.push('Preview:');
-              parts.push('```');
-              parts.push(md.split('\n').slice(0, 15).join('\n'));
-              parts.push('```');
-            } catch (ew: any) {
-              var ewm = ew && ew.message ? ew.message : String(ew);
-              parts.push('❌ Failed to write: ' + ewm);
-            }
-          }
-
-          var output = parts.join('\n');
-          if (ctx2 && ctx2.ui) ctx2.ui.notify(output, 'info');
-          return output;
-        } catch (err: any) {
-          var msg = err && err.message ? err.message : String(err);
-          if (ctx2 && ctx2.ui) ctx2.ui.notify('Init error: ' + msg, 'error');
-          return 'Error: ' + msg;
-        }
+        return await _handleRagInit(rawArgs, ctx2);
       },
     });
   }
