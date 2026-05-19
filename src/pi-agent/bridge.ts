@@ -260,7 +260,44 @@ export default function myExtension(pi: any) {
           try {
             fs.writeFileSync(outputPath, md, 'utf-8');
             parts.push('✅ KNOWLEDGE.md written to: ' + outputPath);
-            parts.push('');
+
+            // ── Update AGENTS.md with Knowledge section ──
+            var agentsPath = path.join(process.cwd(), 'AGENTS.md');
+            var agentsContent = '';
+            var agentsMarkdown = '';
+            var knowledgeSection = `
+## Knowledge
+
+Always read \`KNOWLEDGE.md\` first — it contains domain knowledge, project context, and reference material relevant to the current session.
+
+`;
+
+            // Check if AGENTS.md exists
+            if (fs.existsSync(agentsPath)) {
+              agentsContent = fs.readFileSync(agentsPath, 'utf-8');
+              if (agentsContent.indexOf('## Knowledge') >= 0) {
+                // Already has Knowledge section, no action needed
+                parts.push('✅ AGENTS.md already up to date');
+              } else {
+                // Insert Knowledge section after first line
+                var firstNewline = agentsContent.indexOf('\n');
+                if (firstNewline > 0) {
+                  agentsMarkdown = agentsContent.substring(0, firstNewline + 1) +
+                    knowledgeSection +
+                    agentsContent.substring(firstNewline + 1);
+                } else {
+                  agentsMarkdown = knowledgeSection + agentsContent;
+                }
+                fs.writeFileSync(agentsPath, agentsMarkdown, 'utf-8');
+                parts.push('✅ AGENTS.md updated (Knowledge section added)');
+              }
+            } else {
+              // AGENTS.md doesn't exist, create it
+              var templateMd = '# AGENTS.md\n\n' + knowledgeSection;
+              fs.writeFileSync(agentsPath, templateMd, 'utf-8');
+              parts.push('✅ AGENTS.md created');
+            }
+parts.push('');
             parts.push('Preview:');
             parts.push('```\n' + md.split('\n').slice(0, 15).join('\n') + '\n```');
           } catch (writeErr: any) {

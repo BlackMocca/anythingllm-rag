@@ -60,17 +60,3 @@ Test files live in `test/`:
 - `test/registry-loader.test.ts` — parseKnowledge, WorkspaceResolver, loadRegistry, collectAllTags, getWorkspaceMetadata
 
 ---
-
-## PI Agent Extension
-
-The **PI agent module** (`src/pi-agent/`) provides the bridge between this RAG system and the PI Coding Agent:
-
-| File | Purpose |
-|---|--|
-| `bridge.ts` | PI `registerTool` bridge — exports default function for auto-discovery |
-| `registry-loader.ts` | KNOWLEDGE.md loading, caching, tag collection |
-| `routing.ts` | Metadata-based intelligent workspace routing |
-| `index.ts` | Public exports |
-
-**PI dev mode**: `pi -e ./src/pi-agent/bridge.ts`
-**Production extension**: place in `~/.pi/agent/extensions/anything-llm.ts`
