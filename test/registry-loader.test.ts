@@ -19,7 +19,7 @@ import { WorkspaceResolver } from '../src/resolver';
 // ── Fixture data (mirrors examples/KNOWLEDGE.md) ──
 
 const KNOWLEDGE_RAW = fs.readFileSync(
-  path.join(__dirname, '..', 'examples', 'KNOWLEDGE.md'),
+  path.join(__dirname, 'fixtures', 'knowledge.md'),
   'utf-8'
 );
 
@@ -130,9 +130,8 @@ describe('loadRegistry', function () {
     var result = loadRegistry({
       knowledgePath: path.join(
         __dirname,
-        '..',
-        'examples',
-        'KNOWLEDGE.md'
+        'fixtures',
+        'knowledge.md'
       ),
       workspaceBasePath: '/tmp/ws',
     });

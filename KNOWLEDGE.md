@@ -18,7 +18,9 @@ where `<text>` is either a **description** or **comma-separated keywords** for r
 
 ## Workspace List
 
-<!-- workspace_entries -->
+- mangareader — please add description about this workspacee or tag for AI Agent
+- global — please add description about this workspacee or tag for AI Agent
+- test — please add description about this workspacee or tag for AI Agent
 
 ---
 

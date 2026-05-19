@@ -214,27 +214,60 @@ export default function myExtension(pi: any) {
         parts.push('To generate KNOWLEDGE.md, run /anythingllm-rag-init --write');
         parts.push('');
       } else {
-        var lines = ['# Workspaces', ''];
-        for (var _i2 = 0; _i2 < entries.length; _i2++) {
-          var w2 = entries[_i2];
-          lines.push('- ' + w2.slug + ' — ' + 'Please add keyword or description of this workspace');
-        }
-        lines.push('');
-        var md = lines.join('\n');
-
+        const fs = require('fs');
+        const templatePath = path.join(process.cwd(), 'examples', 'KNOWLEDGE.md');
         var outputPath = './KNOWLEDGE.md';
-        try {
-          require('fs').writeFileSync(outputPath, md, 'utf-8');
-          parts.push('✅ KNOWLEDGE.md written to: ' + outputPath);
-          parts.push('');
-          parts.push('Preview:');
-          parts.push('```');
-          parts.push(md.split('\n').slice(0, 15).join('\n'));
-          parts.push('```');
-        } catch (ew: any) {
-          var ewm = ew && ew.message ? ew.message : String(ew);
-          parts.push('❌ Failed to write KNOWLEDGE.md: ' + ewm);
-          parts.push('📄 Log file: ' + _logFilePath());
+        var templateContent = '';
+        var md = '';
+
+        // Build workspace list from RAG backend entries
+        var wsLines: string[] = [];
+        for (var i = 0; i < entries.length; i++) {
+          var e = entries[i];
+          var text = '';
+          if (e.description) {
+            text = e.description;
+          } else if (e.tags && e.tags.length > 0) {
+            text = e.tags.join(', ');
+          } else {
+            text = "please add description about this workspacee or tag for AI Agent";
+          }
+          wsLines.push('- ' + e.slug + ' — ' + text);
+        }
+
+        // Read template and replace workspace_entries section
+        if (entries.length > 0) {
+          try {
+            templateContent = fs.readFileSync(templatePath, 'utf-8');
+            var marker = '<!-- workspace_entries -->';
+            var idx = templateContent.indexOf(marker);
+            if (idx >= 0) {
+              var before = templateContent.substring(0, idx);
+              var wsLine = wsLines.join('\n') + '\n';
+              var nextDash = templateContent.indexOf('\n---\n', idx);
+              var after = nextDash >= 0 ? templateContent.substring(nextDash) : '\n---\n\n';
+              md = before + wsLine + after;
+            } else {
+              md = '# Workspaces\n\n' + wsLines.join('\n') + '\n';
+            }
+          } catch (readErr: any) {
+            md = '# Workspaces\n\n' + wsLines.join('\n') + '\n';
+          }
+        }
+        if (entries.length === 0) {
+          parts.push('⚠ No workspaces to write.');
+        } else if (entries.length > 0 && md) {
+          try {
+            fs.writeFileSync(outputPath, md, 'utf-8');
+            parts.push('✅ KNOWLEDGE.md written to: ' + outputPath);
+            parts.push('');
+            parts.push('Preview:');
+            parts.push('```\n' + md.split('\n').slice(0, 15).join('\n') + '\n```');
+          } catch (writeErr: any) {
+            var ewm = writeErr && writeErr.message ? writeErr.message : String(writeErr);
+            parts.push('❌ Failed to write KNOWLEDGE.md: ' + ewm);
+            parts.push('📄 Log file: ' + _logFilePath());
+          }
         }
       }
 

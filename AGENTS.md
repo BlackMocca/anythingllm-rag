@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Knowledge
+
+Always read `KNOWLEDGE.md` first — it contains domain knowledge, project context, and reference material relevant to the current session.
+
 ## CLI Working Directory
 
 Use the `pwd` command to get the current working directory before any file path operation. Always resolve paths relative to the project root.
