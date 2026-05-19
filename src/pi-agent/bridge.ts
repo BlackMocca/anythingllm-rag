@@ -110,7 +110,7 @@ function buildCtxResolvers() {
     ctx.workspaceResolver = loadRegistry();
   } catch (_) {
     ctx.workspaceResolver = loadRegistry({
-      knowledgePath: path.join(process.cwd(), 'examples', 'KNOWLEDGE.md'),
+      knowledgePath: path.join(__dirname, '..', '..', 'examples', 'KNOWLEDGE.md'),
       workspaceBasePath: process.cwd(),
     });
   }
@@ -215,7 +215,7 @@ export default function myExtension(pi: any) {
         parts.push('');
       } else {
         const fs = require('fs');
-        const templatePath = path.join(process.cwd(), 'examples', 'KNOWLEDGE.md');
+        const templatePath = path.join(__dirname, '..', '..', 'examples', 'KNOWLEDGE.md');
         var outputPath = './KNOWLEDGE.md';
         var templateContent = '';
         var md = '';
